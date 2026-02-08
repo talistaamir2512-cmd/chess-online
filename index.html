@@ -106,22 +106,25 @@ const board = Chessboard('board', {
   }
 });
 
-/* 👤 ASSIGN COLOR (обновлённый вариант) */
-gameRef.child("players").on("value", snap => {
+/* 👤 ASSIGN COLOR (надежный вариант) */
+const playersRef = gameRef.child("players");
+
+playersRef.on("value", snap => {
   const players = snap.val() || {};
 
-  if (!myColor) { // если мы ещё не присвоили цвет
-    if (!players.white) {
-      myColor = 'w';
-      gameRef.child("players/white").set(true);
-      document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-    } else if (!players.black) {
-      myColor = 'b';
-      gameRef.child("players/black").set(true);
-      document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
-    } else {
-      document.getElementById("status").innerText = "Комната заполнена";
-    }
+  // Если уже присвоен цвет — выходим
+  if (myColor) return;
+
+  if (!players.white) {
+    myColor = 'w';
+    playersRef.child("white").set(true);
+    document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
+  } else if (!players.black) {
+    myColor = 'b';
+    playersRef.child("black").set(true);
+    document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+  } else {
+    document.getElementById("status").innerText = "Комната заполнена";
   }
 });
 
