@@ -59,8 +59,8 @@ if(!gameId) {
   gameId = Math.random().toString(36).slice(2);
   location.hash = gameId;
 }
-
 const gameRef = db.ref("games/" + gameId);
+const playersRef = gameRef.child("players");
 
 /* ♟ BOARD */
 const board = Chessboard('board', {
@@ -77,21 +77,35 @@ const board = Chessboard('board', {
   }
 });
 
-/* 👤 ASSIGN COLOR & WAIT FOR PLAYER */
-const playersRef = gameRef.child("players");
+/* 👤 ROOM LOGIC WITH WAITING */
+let playerId = Math.random().toString(36).slice(2);
 
-playersRef.on("value", snap => {
+playersRef.once("value").then(snap => {
   const players = snap.val() || {};
 
-  if(!myColor){
-    if(!players.white){
-      myColor = 'w';
-      playersRef.update({ white:true });
-      document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-    } else if(!players.black){
+  if(!players.white){
+    myColor = 'w';
+    playersRef.child("white").set(playerId);
+    document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
+  } else if(!players.black){
+    myColor = 'b';
+    playersRef.child("black").set(playerId);
+    document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+  } else {
+    document.getElementById("status").innerText = "Комната заполнена";
+  }
+});
+
+// Слушаем подключение второго игрока
+playersRef.on("value", snap => {
+  const players = snap.val() || {};
+  if(players.white && players.black && !myColor){
+    if(players.white !== playerId){
       myColor = 'b';
-      playersRef.update({ black:true });
       document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+    } else if(players.black !== playerId){
+      myColor = 'w';
+      document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
     }
   }
 });
@@ -137,4 +151,5 @@ function restartGame(){
 
 </body>
 </html>
+
 
