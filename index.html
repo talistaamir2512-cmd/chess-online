@@ -61,7 +61,7 @@
 </div>
 
 <script>
-/* 🔥 FIREBASE CONFIG (ТВОЙ) 🔥 */
+/* 🔥 FIREBASE CONFIG 🔥 */
 const firebaseConfig = {
   apiKey: "AIzaSyB4UtIoIiS3Lq4ml7dvgWeg6b8bA8sqxNg",
   authDomain: "chess-d3fd7.firebaseapp.com",
@@ -106,20 +106,22 @@ const board = Chessboard('board', {
   }
 });
 
-/* 👤 ASSIGN COLOR */
-gameRef.child("players").once("value", snap => {
+/* 👤 ASSIGN COLOR (обновлённый вариант) */
+gameRef.child("players").on("value", snap => {
   const players = snap.val() || {};
 
-  if (!players.white) {
-    myColor = 'w';
-    gameRef.child("players/white").set(true);
-    document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-  } else if (!players.black) {
-    myColor = 'b';
-    gameRef.child("players/black").set(true);
-    document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
-  } else {
-    document.getElementById("status").innerText = "Комната заполнена";
+  if (!myColor) { // если мы ещё не присвоили цвет
+    if (!players.white) {
+      myColor = 'w';
+      gameRef.child("players/white").set(true);
+      document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
+    } else if (!players.black) {
+      myColor = 'b';
+      gameRef.child("players/black").set(true);
+      document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+    } else {
+      document.getElementById("status").innerText = "Комната заполнена";
+    }
   }
 });
 
