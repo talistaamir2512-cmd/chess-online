@@ -106,25 +106,26 @@ const board = Chessboard('board', {
   }
 });
 
-/* 👤 ASSIGN COLOR (надежный вариант) */
+/* 👤 ASSIGN COLOR (обновлённый и надёжный вариант) */
 const playersRef = gameRef.child("players");
 
 playersRef.on("value", snap => {
   const players = snap.val() || {};
 
-  // Если уже присвоен цвет — выходим
+  // Если цвет уже присвоен, ничего не делаем
   if (myColor) return;
 
+  // Назначаем белого, если свободно
   if (!players.white) {
     myColor = 'w';
-    playersRef.child("white").set(true);
+    playersRef.update({ whiteы: true });
     document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-  } else if (!players.black) {
+  } 
+  // Назначаем черного, если белый уже есть
+  else if (!players.black) {
     myColor = 'b';
-    playersRef.child("black").set(true);
+    playersRef.update({ black: true });
     document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
-  } else {
-    document.getElementById("status").innerText = "Комната заполнена";
   }
 });
 
