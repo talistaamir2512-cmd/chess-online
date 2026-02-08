@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Онлайн шахматы</title>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- Chess logic -->
+  <script src="https://unpkg.com/chess.js@1.0.0/chess.js"></script>
+
+  <!-- Chessboard -->
+  <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/www/css/chessboard.css">
+  <script src="https://unpkg.com/chessboardjs@1.0.0/www/js/chessboard.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #f4f4f4;
+    }
+    #board {
+      width: 400px;
+      margin: 20px auto;
+    }
+    #status {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      color: white;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-size: 24px;
+      z-index: 10;
+    }
+    button {
+      margin-top: 20px;
+      padding: 10px 25px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Онлайн шахматы</h2>
+<div id="board"></div>
+<div id="status">Ожидание второго игрока…</div>
+
+<div id="overlay">
+  <div id="result"></div>
+  <button onclick="restartGame()">Начать заново</button>
+</div>
+
+<script>
+/* 🔥 FIREBASE CONFIG (ТВОЙ) 🔥 */
+const firebaseConfig = {
+  apiKey: "AIzaSyB4UtIoIiS3Lq4ml7dvgWeg6b8bA8sqxNg",
+  authDomain: "chess-d3fd7.firebaseapp.com",
+  databaseURL: "https://chess-d3fd7-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "chess-d3fd7",
+  storageBucket: "chess-d3fd7.firebasestorage.app",
+  messagingSenderId: "189397425670",
+  appId: "1:189397425670:web:fc75951cef1bef0db82d87"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* 🔥 GAME LOGIC 🔥 */
+const game = new Chess();
+let myColor = null;
+let gameEnded = false;
+
+/* 🔗 GAME ID FROM LINK */
+const gameId = location.hash.slice(1) || Math.random().toString(36).slice(2);
+location.hash = gameId;
+
+const gameRef = db.ref("games/" + gameId);
+
+/* ♟ BOARD */
+const board = Chessboard('board', {
+  draggable: true,
+  position: 'start',
+  onDrop: (from, to) => {
+    if (gameEnded) return "snapback";
+    if (game.turn() !== myColor) return "snapback";
+
+    const move = game.move({
+      from,
+      to,
+      promotion: 'q'
+    });
+
+    if (!move) return "snapback";
+
+    updateGameState();
+  }
+});
+
+/* 👤 ASSIGN COLOR */
+gameRef.child("players").once("value", snap => {
+  const players = snap.val() || {};
+
+  if (!players.white) {
+    myColor = 'w';
+    gameRef.child("players/white").set(true);
+    document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
+  } else if (!players.black) {
+    myColor = 'b';
+    gameRef.child("players/black").set(true);
+    document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+  } else {
+    document.getElementById("status").innerText = "Комната заполнена";
+  }
+});
+
+/* 🔄 LISTEN FOR UPDATES */
+gameRef.on("value", snap => {
+  const data = snap.val();
+  if (!data || !data.fen) return;
+
+  game.load(data.fen);
+  board.position(data.fen);
+
+  if (data.status === "mate") {
+    showResult("Мат! Победил " + (game.turn() === 'w' ? "чёрный" : "белый"));
+  } else if (data.status === "draw") {
+    showResult("Ничья");
+  }
+});
+
+/* 📡 UPDATE STATE */
+function updateGameState() {
+  let status = "playing";
+
+  if (game.in_checkmate()) status = "mate";
+  else if (game.in_draw()) status = "draw";
+
+  gameRef.set({
+    fen: game.fen(),
+    status
+  });
+}
+
+/* 🏁 GAME OVER */
+function showResult(text) {
+  gameEnded = true;
+  document.getElementById("overlay").style.display = "flex";
+  document.getElementById("result").innerText = text;
+}
+
+/* 🔁 RESTART */
+function restartGame() {
+  gameRef.remove();
+  location.reload();
+}
+</script>
+
+</body>
+</html>
+
