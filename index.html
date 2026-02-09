@@ -2,11 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Онлайн шахматы</title>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<title>Online Chess</title>
 
 <!-- Chess.js -->
 <script src="https://unpkg.com/chess.js@1.0.0/chess.js"></script>
@@ -16,18 +12,45 @@
 <script src="https://unpkg.com/chessboardjs@1.0.0/www/js/chessboard.js"></script>
 
 <style>
-body { font-family: Arial; text-align:center; background:#f4f4f4; }
-#board { width:400px; margin:20px auto; }
-#status { font-size:18px; margin-top:10px; }
-#overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); color:white; display:none; align-items:center; justify-content:center; flex-direction:column; font-size:24px; z-index:10; }
-button { margin-top:20px; padding:10px 25px; font-size:18px; cursor:pointer; }
+body {
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: #f4f4f4;
+}
+#board {
+  width: 400px;
+  margin: 20px auto;
+}
+#status {
+  font-size: 18px;
+  margin-top: 10px;
+}
+#overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  color: white;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-size: 26px;
+  z-index: 10;
+}
+button {
+  margin-top: 20px;
+  padding: 10px 25px;
+  font-size: 18px;
+  cursor: pointer;
+}
 </style>
 </head>
+
 <body>
 
 <h2>Онлайн шахматы</h2>
 <div id="board"></div>
-<div id="status">Ожидание второго игрока…</div>
+<div id="status"></div>
 
 <div id="overlay">
   <div id="result"></div>
@@ -35,121 +58,91 @@ button { margin-top:20px; padding:10px 25px; font-size:18px; cursor:pointer; }
 </div>
 
 <script>
-/* 🔥 FIREBASE CONFIG 🔥 */
-const firebaseConfig = {
-  apiKey: "AIzaSyB4UtIoIiS3Lq4ml7dvgWeg6b8bA8sqxNg",
-  authDomain: "chess-d3fd7.firebaseapp.com",
-  databaseURL: "https://chess-d3fd7-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "chess-d3fd7",
-  storageBucket: "chess-d3fd7.firebasedstorage.app",
-  messagingSenderId: "189397425670",
-  appId: "1:189397425670:web:fc75951cef1bef0db82d87"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+/* ===============================
+   GAME LOGIC (CHESS.COM STYLE)
+   =============================== */
 
-/* 🔗 GAME SETUP */
 const game = new Chess();
-let myColor = null;
 let gameEnded = false;
 
-/* GET GAME ID FROM HASH OR CREATE NEW */
-let gameId = location.hash.slice(1);
-if(!gameId) {
-  gameId = Math.random().toString(36).slice(2);
-  location.hash = gameId;
-}
-const gameRef = db.ref("games/" + gameId);
-const playersRef = gameRef.child("players");
-
-/* ♟ BOARD */
+/* BOARD */
 const board = Chessboard('board', {
   draggable: true,
   position: 'start',
-  onDrop: (from, to) => {
-    if(gameEnded) return "snapback";
-    if(game.turn() !== myColor) return "snapback";
-
-    const move = game.move({ from, to, promotion: 'q' });
-    if(!move) return "snapback";
-
-    updateGameState();
-  }
+  onDrop: onDrop
 });
 
-/* 👤 ROOM LOGIC WITH WAITING */
-let playerId = Math.random().toString(36).slice(2);
+/* MOVE HANDLER */
+function onDrop(from, to) {
+  if (gameEnded) return 'snapback';
 
-playersRef.once("value").then(snap => {
-  const players = snap.val() || {};
+  const move = game.move({
+    from: from,
+    to: to,
+    promotion: 'q'
+  });
 
-  if(!players.white){
-    myColor = 'w';
-    playersRef.child("white").set(playerId);
-    document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-  } else if(!players.black){
-    myColor = 'b';
-    playersRef.child("black").set(playerId);
-    document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
+  if (move === null) return 'snapback';
+
+  board.position(game.fen());
+  updateStatus();
+  checkGameEnd();
+}
+
+/* STATUS */
+function updateStatus() {
+  let text = '';
+
+  if (game.in_check()) {
+    text = 'Шах!';
   } else {
-    document.getElementById("status").innerText = "Комната заполнена";
+    text = game.turn() === 'w'
+      ? 'Ход белых'
+      : 'Ход чёрных';
   }
-});
 
-// Слушаем подключение второго игрока
-playersRef.on("value", snap => {
-  const players = snap.val() || {};
-  if(players.white && players.black && !myColor){
-    if(players.white !== playerId){
-      myColor = 'b';
-      document.getElementById("status").innerText = "Ты играешь за ЧЁРНЫХ";
-    } else if(players.black !== playerId){
-      myColor = 'w';
-      document.getElementById("status").innerText = "Ты играешь за БЕЛЫХ";
-    }
-  }
-});
-
-/* 🔄 LISTEN FOR GAME STATE */
-gameRef.child("fen").on("value", snap => {
-  const fen = snap.val();
-  if(fen) {
-    game.load(fen);
-    board.position(fen);
-  }
-});
-
-gameRef.child("status").on("value", snap => {
-  const status = snap.val();
-  if(status === "mate") showResult("Мат! Победил " + (game.turn() === 'w' ? "чёрный" : "белый"));
-  if(status === "draw") showResult("Ничья");
-});
-
-/* 📡 UPDATE GAME STATE */
-function updateGameState(){
-  let status = "playing";
-  if(game.in_checkmate()) status = "mate";
-  else if(game.in_draw()) status = "draw";
-
-  gameRef.child("fen").set(game.fen());
-  gameRef.child("status").set(status);
+  document.getElementById('status').innerText = text;
 }
 
-/* 🏁 GAME OVER */
-function showResult(text){
+/* GAME END CHECK */
+function checkGameEnd() {
+
+  if (game.isCheckmate()) {
+    const winner = game.turn() === 'w' ? 'Чёрные' : 'Белые';
+    endGame('Мат! Победили ' + winner);
+    return;
+  }
+
+  if (game.isStalemate()) {
+    endGame('Пат. Ничья');
+    return;
+  }
+
+  if (game.isDraw()) {
+    endGame('Ничья');
+    return;
+  }
+}
+
+/* END GAME */
+function endGame(text) {
   gameEnded = true;
-  document.getElementById("overlay").style.display = "flex";
-  document.getElementById("result").innerText = text;
+  document.getElementById('overlay').style.display = 'flex';
+  document.getElementById('result').innerText = text;
 }
 
-/* 🔁 RESTART */
-function restartGame(){
-  gameRef.remove();
-  location.reload();
+/* RESTART */
+function restartGame() {
+  game.reset();
+  board.start();
+  gameEnded = false;
+  document.getElementById('overlay').style.display = 'none';
+  updateStatus();
 }
+
+/* INIT */
+updateStatus();
 </script>
 
 </body>
 </html>
-
-
